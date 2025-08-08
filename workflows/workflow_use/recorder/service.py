@@ -121,18 +121,36 @@ class RecordingService:
 				args=[
 					f'--disable-extensions-except={str(EXT_DIR.resolve())}',
 					f'--load-extension={str(EXT_DIR.resolve())}',
+					"--enable-extensions",
 					'--no-default-browser-check',
 					'--no-first-run',
 				],
 				keep_alive=True,
 			)
 
-			# Create and configure browser
-			playwright = await patchright_async_playwright().start()
-			self.browser = Browser(browser_profile=profile, playwright=playwright)
-
 			print('[Service] Starting browser with extensions...')
-			await self.browser.start()
+			# Create and configure browser
+			# Rye hack: directly launch the browser from playwright
+			# and pass it to browser_use, otherwise browser_use fucks up and doesn't
+			# enable stealth mode properly and we get owned by bot detection systems
+			playwright = await patchright_async_playwright().start()
+			browser = await playwright.chromium.launch(
+				**profile.kwargs_for_launch().model_dump(),
+			)
+			self.browser = Browser(
+				headless=False,
+				browser_profile=profile,
+				playwright=playwright,
+				browser=browser,
+				browser_context = await playwright.chromium.launch_persistent_context(
+					**profile.kwargs_for_launch_persistent_context().model_dump()
+				)
+			)
+
+
+			# This is how workflow_use would have launched the browser anyway.
+			# self.browser = Browser(browser_profile=profile, playwright=playwright)
+			# await self.browser.start()
 
 			print('[Service] Browser launched. Waiting for close or recording stop...')
 
