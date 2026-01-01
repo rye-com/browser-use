@@ -1664,6 +1664,28 @@ class Agent(Generic[Context, AgentStructuredOutput]):
 				action_data = action.model_dump(exclude_unset=True)
 				action_name = next(iter(action_data.keys())) if action_data else 'unknown'
 
+				# Check for duplicate click actions
+				if action_name == 'click' and 'click' in action_data:
+					click_params = action_data['click']
+					if isinstance(click_params, dict) and 'index' in click_params:
+						click_index = click_params['index']
+						# Look up the element in the cached selector map
+						if click_index in cached_selector_map:
+							element = cached_selector_map[click_index]
+							element_hash = hash(element)
+							# Get previously clicked element hashes from history
+							clicked_hashes = self.history.get_clicked_element_hashes()
+							if element_hash in clicked_hashes:
+								self.logger.warning(
+									f'⚠️ Skipping duplicate click on element {click_index} - already clicked earlier in session'
+								)
+								results.append(
+									ActionResult(
+										error=f'Element {click_index} was already clicked earlier in this session. Choose a different action or element to proceed.'
+									)
+								)
+								continue
+
 				# Log action before execution
 				self._log_action(action, action_name, i + 1, total_actions)
 

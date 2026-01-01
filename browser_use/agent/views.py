@@ -615,6 +615,27 @@ class AgentHistoryList(BaseModel, Generic[AgentStructuredOutput]):
 					result.append(o)
 		return result
 
+	def get_clicked_element_hashes(self) -> set[int]:
+		"""Get all element hashes that have been clicked in the history.
+
+		Returns a set of element_hash values from interacted_elements where the action was a click.
+		This is used to prevent duplicate click actions on the same element.
+		"""
+		clicked_hashes: set[int] = set()
+		for h in self.history:
+			if h.model_output and h.state.interacted_element:
+				for action, interacted_element in zip(h.model_output.action, h.state.interacted_element):
+					# Check if this was a click action
+					action_data = action.model_dump(exclude_unset=True)
+					if 'click' in action_data and interacted_element is not None:
+						# Handle both dict and DOMInteractedElement
+						if isinstance(interacted_element, dict):
+							if 'element_hash' in interacted_element:
+								clicked_hashes.add(interacted_element['element_hash'])
+						elif hasattr(interacted_element, 'element_hash'):
+							clicked_hashes.add(interacted_element.element_hash)
+		return clicked_hashes
+
 	def number_of_steps(self) -> int:
 		"""Get the number of steps in the history"""
 		return len(self.history)
